@@ -1,0 +1,558 @@
+{
+  "name": "email+label+sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "includeSpamTrash": false,
+          "includeDrafts": false,
+          "labelIds": [],
+          "q": "",
+          "readStatus": "unread",
+          "sender": ""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2544,
+        448
+      ],
+      "id": "48625cf5-9f18-4f17-9f40-76cf32ea0696",
+      "name": "Gmail Trigger1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = items[0].json;\n\nconst subject = data.Subject || \"No Subject\";\nconst from = data.From || \"Unknown Sender\";\nconst to = data.To || \"No Recipient\";\n\nlet body = data.snippet || \"No Body Available\"; // Fallback if no MIME body\n\nreturn [\n  {\n    json: {\n      subject,\n      from,\n      to,\n      body\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2256,
+        464
+      ],
+      "id": "730e1430-266e-472f-a7b3-e36b2e4f67fc",
+      "name": "Extract Email fields1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-goog-api-key",
+              "value": "AIzaSyDXM3MLIncr7H4RHe4Z5Hhm3sQtlxmWj-A"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Give me only one word answer.Classify this email into one of the following categories: internship, job offer, university, spam, personal, newsletter, other.\\n\\nSubject: {{$json.subject}}\\n\\nFrom: {{$json.from}}\\n\\nBody: {{$json.body}}\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2048,
+        464
+      ],
+      "id": "38f31a13-66ed-424e-9e78-005ebb6f8136",
+      "name": "Classify Email1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "23c00fda-09e7-4676-94ac-b7e1035a2642",
+              "name": "category",
+              "value": "={{ String($json.candidates[0].content.parts[0].text).replace(/[\\n\\r]/g, '').trim().toLowerCase() }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1840,
+        464
+      ],
+      "id": "a31629a2-fcd3-4908-88b9-93814e6afa75",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger1').item.json.id }}",
+        "labelIds": [
+          "Label_1898285206371193625"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -768,
+        432
+      ],
+      "id": "43a9e15e-51d4-4c40-9f22-4432ba5488ca",
+      "name": "Add label to message1",
+      "webhookId": "368b6d9d-5f18-411b-97ef-110a40527e18",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"my_field_1\": \"{{ $json.category.replace(/\\\\n|\\\\r/g, '').trim() }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1568,
+        448
+      ],
+      "id": "907f56d2-afe2-4368-9105-92d07de38609",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.my_field_1 }}",
+                    "rightValue": "internship",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d2390fb9-ff8b-4dc1-b0e0-8ae9de85f96a"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1ff97fbc-2f51-419b-98d8-4f7d504d931b",
+                    "leftValue": "={{ $json.my_field_1 }}",
+                    "rightValue": "job offer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "69628d3f-a7bf-4edb-a6b0-12f432578888",
+                    "leftValue": "={{ $json.my_field_1 }}",
+                    "rightValue": "spam",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1280,
+        416
+      ],
+      "id": "6c3c822c-119e-47f9-a8e0-c92dc29a53d1",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash-001",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash-001"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $('Gmail Trigger1').item.json.snippet }}Based on this internship email, answer with only one word: paid or unpaid?\\n\\n{{$json.body}}\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        16
+      ],
+      "id": "79bcf335-f961-44d0-93f7-1a1c3b718763",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "tIhwwloRYoAvpQTD",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "52d79235-5dab-458b-a0fd-f78f913962e1",
+              "name": "paidStatus",
+              "value": "={{ $json.content.parts[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        16
+      ],
+      "id": "cdbc8ef0-20c6-4227-83e0-ae4d69957fef",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger1').item.json.id }}",
+        "labelIds": [
+          "Label_5213672834154531110"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -784,
+        160
+      ],
+      "id": "f8b2dfba-4700-4343-8a4c-5dfa38694efd",
+      "name": "Add label to message",
+      "webhookId": "f2069368-e5fd-4a70-9a60-4537eb2afef2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs",
+          "mode": "list",
+          "cachedResultName": "Email Categories",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2134676251,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs/edit#gid=2134676251"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Category": "={{ $('Classify Email1').item.json.candidates[0].content.parts[0].text }}",
+            "Subject": "={{ $('Extract Email fields1').item.json.subject }}",
+            "From": "={{ $('Gmail Trigger1').item.json.From }}",
+            "paid/unpaid": "={{ $json.paidStatus }}",
+            "Time Recv": "={{ $now }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "From",
+              "displayName": "From",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "paid/unpaid",
+              "displayName": "paid/unpaid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Time Recv",
+              "displayName": "Time Recv",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -240,
+        256
+      ],
+      "id": "d3371151-6eac-4a00-aab5-6b41972deb8f",
+      "name": "Append row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "718IaJYyaYJqcPur",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Gmail Trigger1": [
+      {
+        "json": {
+          "id": "1986f61a33d82278",
+          "threadId": "1986f61a33d82278",
+          "snippet": "We are at xspace technology inviting you for an interview",
+          "payload": {
+            "mimeType": "multipart/alternative"
+          },
+          "sizeEstimate": 5670,
+          "historyId": "176298",
+          "internalDate": "1754215313000",
+          "labels": [
+            {
+              "id": "INBOX",
+              "name": "INBOX"
+            },
+            {
+              "id": "CATEGORY_PERSONAL",
+              "name": "CATEGORY_PERSONAL"
+            },
+            {
+              "id": "UNREAD",
+              "name": "UNREAD"
+            },
+            {
+              "id": "Label_1898285206371193625",
+              "name": "Job offer"
+            }
+          ],
+          "From": "Kainat <kainatliaqat10@gmail.com>",
+          "Subject": "Job offer",
+          "To": "hasyyb1@gmail.com"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Gmail Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Extract Email fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email fields1": {
+      "main": [
+        [
+          {
+            "node": "Classify Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Add label to message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add label to message1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "deadeb2a-ff75-4d4f-8eb4-a7ac1929920a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7ea2f266914e59afdaff9aafd3078f59217b92820add0be5ad0b2738bd061fb1"
+  },
+  "id": "aoOcGs3Giulxt9Zd",
+  "tags": []
+}
