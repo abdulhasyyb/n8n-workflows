@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.searchQuery }}",
+        "options": {
+          "systemMessage": "\n\nYou are an AI agent that manages information in a Google Sheet. Your job is to read incoming chat messages, review the current sheet data And answer the user query\n\nWhatever question the user asks always go to the Google Sheet to refer for the answer\n\n## Core Process\n\n1. **Read the message**: Understand what the user is asking for or reporting\n2. **Review the sheet**: Use the read tool to get current data from all relevant sections\n3. **Analyze**: Determine what information needs to be shared\n4. Check order availibility:if the bag is availible on website tell the user to visit the website to place an order.\n5. **Confirm**: Once the client gives the confirmation shoot a mail of the confirmation to the client using the Send email tool \n\n## Available Tools\n\n- `read_google_sheet`: Retrieves current data from the Google Sheet\n\n\n## Guidelines\n\n- Always read the sheet first before answering any query\n- If the message is unclear, ask for clarification\n- Provide a brief summary of what you updated after making changes\n\n## Response Format\n\n1. Read the current sheet data\n\nStay focused, efficient, and accurate in your updates.\n\nIf the user asks something and the data is not available on the sheet, Tell the user that you couldn't provide the information because of the privacy reason.\n\nNever mention  \"in the sheet\" to the user instead mention \"in the database\"\n\nKeep all the responses as concise as possible and not more than three lines or three sentences\n\nIf the user asks for date availability use the calendar tool to check the availability on those dates\n\nWhen the user asks for the booking confirmation and everything ask him or her his full an email address and then schedule an event Also in creating the event add the details.\n\nIf you are booking or checking the availability never say ‘event’  always say Slot \n\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -96
+      ],
+      "id": "0252d96d-bf35-4b0b-bdeb-c3f500e7e4c4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1nqmAvnK0TjN0YOSfaMXG0LVjwCQhXV1To5sXoFZVjxw",
+          "mode": "list",
+          "cachedResultName": "azarbags_info",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1nqmAvnK0TjN0YOSfaMXG0LVjwCQhXV1To5sXoFZVjxw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "azar_basic",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1nqmAvnK0TjN0YOSfaMXG0LVjwCQhXV1To5sXoFZVjxw/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.6,
+      "position": [
+        368,
+        112
+      ],
+      "id": "6deedbcb-da23-4f69-920b-1f2be96b203d",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "718IaJYyaYJqcPur",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "azarbag",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -80
+      ],
+      "id": "19337dc0-24a0-475d-8338-a0d7a54e0ed6",
+      "name": "Webhook",
+      "webhookId": "cbaa6ea2-ad0c-423b-bac4-40823bac3429"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        352,
+        -96
+      ],
+      "id": "c39a6715-6575-4757-b9e1-53d25f7a9aee",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        80
+      ],
+      "id": "c52cdc26-25b9-4f8e-afdb-e79451e968c3",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "tIhwwloRYoAvpQTD",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7ea2f266914e59afdaff9aafd3078f59217b92820add0be5ad0b2738bd061fb1"
+  }
+}
