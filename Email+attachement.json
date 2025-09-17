@@ -1,0 +1,461 @@
+{
+  "name": "Email+attachement",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "includeSpamTrash": false,
+          "includeDrafts": false,
+          "labelIds": [],
+          "q": "",
+          "readStatus": "unread",
+          "sender": ""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2224,
+        32
+      ],
+      "id": "5689561d-bc5c-4708-ab99-0f98a2cbca22",
+      "name": "Gmail Trigger1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = items[0].json;\n\nconst parts = msg.payload?.parts || [];\nconst attachments = [];\n\nfunction extractAttachments(parts, messageId) {\n  for (const part of parts) {\n    if (part.filename && part.body?.attachmentId) {\n      // Only push if it's a PDF file\n      const isPdf = part.mimeType === 'application/pdf' || part.filename.endsWith('.pdf');\n      if (isPdf) {\n        attachments.push({\n          filename: part.filename,\n          attachmentId: part.body.attachmentId,\n          mimeType: part.mimeType,\n          messageId: messageId\n        });\n      }\n    }\n\n    // Recursive extraction for nested parts\n    if (part.parts) {\n      extractAttachments(part.parts, messageId);\n    }\n  }\n}\n\n// Start extraction\nextractAttachments(parts, msg.id);\n\n// If no PDFs found, return null object or original info\nif (attachments.length === 0) {\n  return [\n    {\n      json: {\n        subject: msg.Subject || \"No Subject\",\n        from: msg.From || \"Unknown Sender\",\n        to: msg.To || \"No Recipient\",\n        body: msg.snippet || \"No Body Available\",\n        messageId: msg.id\n      }\n    }\n  ];\n}\n\n// Return only PDF attachments\nreturn attachments.map(a => ({\n  json: {\n    ...a,\n    subject: msg.Subject,\n    from: msg.From,\n    to: msg.To,\n    snippet: msg.snippet,\n    messageId: msg.id\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -48
+      ],
+      "id": "f2bcc850-397a-4706-95dc-2353a12a1dee",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{$json.id}}?format=full",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2016,
+        -48
+      ],
+      "id": "c4b56e6a-cde3-468a-8ad5-b588e7faa9e4",
+      "name": "HTTP Request",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{$json.messageId}}/attachments/{{$json.attachmentId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1632,
+        -48
+      ],
+      "id": "b3c0b7a4-9ad5-4822-9d6c-8ee7947dd5ed",
+      "name": "Download Attachement",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Okb3170npG3i4Ix0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1424,
+        -48
+      ],
+      "id": "834548ee-d8e7-4dc9-a6c2-3d71b63bc6d6",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "operation": "Extract Resources",
+        "extractionOptions": {},
+        "advancedOptions": {}
+      },
+      "type": "n8n-nodes-pdf4me.pdf4me",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        -48
+      ],
+      "id": "385815ad-ee7a-4c33-bbec-bf799619db1c",
+      "name": "PDF4ME",
+      "credentials": {
+        "pdf4meApi": {
+          "id": "0fvAT5G29yXSTdc9",
+          "name": "PDF4ME account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-1.5-flash-002",
+          "mode": "list",
+          "cachedResultName": "models/gemini-1.5-flash-002"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an AI assistant that extracts structured internship information from job announcement PDFs.\n\nGo over the following extracted PDF text: {{ $json.data.texts[0] }} and fill in the following fields:\n\ntype – \"Paid\", \"Unpaid\", or \"Not mentioned\".\n\nposition – The internship role. If only \"Intern\" is mentioned, include the department if available.\n\nduration – Internship period (e.g., \"3 Months (September–November 2025)\").\n\nstipend – Include amount and currency if specified (e.g., \"PKR 20,000/month\"); otherwise return \"Not mentioned\".\n\nlocation – \"Remote\", city name, or \"Not mentioned\" if not present.\n\ndeadline – Application deadline; return \"Not mentioned\" if missing.\n\ncompany – Name of the organization offering the internship.\n\nlink – Where to apply. Prefer form links over email addresses or other types.\n\nwork – Return true if the content relates to a job or internship; otherwise, false.\n\nAnalyze only the provided PDF text carefully. Return your answer as a single JSON object in this exact format:\n\n{\n  \"type\": \"\",\n  \"position\": \"\",\n  \"duration\": \"\",\n  \"stipend\": \"\",\n  \"location\": \"\",\n  \"deadline\": \"\",\n  \"company\": \"\",\n  \"link\": \"\",\n  \"work\": true\n}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -48
+      ],
+      "id": "a4918fb6-ed21-4272-bef8-574da66cc45d",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "tIhwwloRYoAvpQTD",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -48
+      ],
+      "id": "bae75d69-d159-4318-856d-0f8eae2ebfc0",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.content.parts[0].text;\n\n// Strip ```json ... ``` block\nconst cleaned = raw.replace(/```json|```/g, '').trim();\n\nconst parsed = JSON.parse(cleaned);\nreturn [{ json: parsed }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        -48
+      ],
+      "id": "7575fd9f-f86b-4674-80d2-5e2a003a9f5f",
+      "name": "parse gemeni JSON"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs",
+          "mode": "list",
+          "cachedResultName": "Email Categories",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 313657015,
+          "mode": "list",
+          "cachedResultName": "Sheet3",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1cax0g-hHlUMFoaoXm9NO1zSiCh4v2RRlCOFTKKfozFs/edit#gid=313657015"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company": "={{ $json.company }}",
+            "Position": "={{ $json.position }}",
+            "Location": "={{ $json.location }}",
+            "Duration": "={{ $json.duration }}",
+            "Stipend": "={{ $json.stipend }}",
+            "Deadline": "={{ $json.deadline }}",
+            "Apply here": "={{ $json.link }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Position",
+              "displayName": "Position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Duration",
+              "displayName": "Duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Stipend",
+              "displayName": "Stipend",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Apply here",
+              "displayName": "Apply here",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        32,
+        -48
+      ],
+      "id": "37e1407e-d10f-4d96-9562-0ac0edb0c37d",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "718IaJYyaYJqcPur",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Gmail Trigger1": [
+      {
+        "json": {
+          "id": "198736133c95e74a",
+          "threadId": "198709e069f32c38",
+          "snippet": "---------- Forwarded message --------- From: Abdul Haseeb &lt;hasyyb1@gmail.com&gt; Date: Mon, Aug 4, 2025, 9:39 AM Subject: Fwd: Fw: Internship Opportunities with Heal Social Foundation To:",
+          "payload": {
+            "mimeType": "multipart/mixed"
+          },
+          "sizeEstimate": 291889,
+          "historyId": "177330",
+          "internalDate": "1754282393000",
+          "labels": [
+            {
+              "id": "INBOX",
+              "name": "INBOX"
+            },
+            {
+              "id": "IMPORTANT",
+              "name": "IMPORTANT"
+            },
+            {
+              "id": "CATEGORY_PERSONAL",
+              "name": "CATEGORY_PERSONAL"
+            },
+            {
+              "id": "UNREAD",
+              "name": "UNREAD"
+            }
+          ],
+          "From": "Abdul Haseeb <abdulhaseeb2405@gmail.com>",
+          "Subject": "Fwd: Fw: Internship Opportunities with Heal Social Foundation",
+          "To": "hasyyb1@gmail.com"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Gmail Trigger1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Download Attachement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Attachement": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "PDF4ME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF4ME": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "parse gemeni JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse gemeni JSON": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3fb50dad-caec-4f62-a57d-b26ce2806257",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7ea2f266914e59afdaff9aafd3078f59217b92820add0be5ad0b2738bd061fb1"
+  },
+  "id": "59AF45rxv38WHQ4T",
+  "tags": []
+}
